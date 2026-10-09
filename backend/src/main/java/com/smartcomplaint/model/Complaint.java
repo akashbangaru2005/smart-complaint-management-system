@@ -1,89 +1,339 @@
 package com.smartcomplaint.model;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "complaints")
 public class Complaint {
+
+    // =========================================================
+    // PRIMARY DATABASE ID
+    // =========================================================
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false)
+
+    // =========================================================
+    // PUBLIC COMPLAINT ID
+    // Example: CMP-2E1BE4BB
+    // =========================================================
+
+    @Column(
+        name = "complaint_id",
+        unique = true,
+        nullable = false
+    )
     private String complaintId;
 
-    @Column(nullable = false)
+
+    // =========================================================
+    // USER ID
+    // Used to show complaints belonging to a specific user
+    // =========================================================
+
+    @Column(
+        name = "user_id",
+        nullable = false
+    )
+    private String userId;
+
+
+    // =========================================================
+    // COMPLAINT TYPE
+    // =========================================================
+
+    @Column(
+        name = "type",
+        nullable = false
+    )
     private String type;
 
-    @Column(nullable = false, length = 4000)
+
+    // =========================================================
+    // COMPLAINT DESCRIPTION
+    // =========================================================
+
+    @Column(
+        name = "description",
+        columnDefinition = "TEXT"
+    )
     private String description;
 
-    @Column(nullable = false)
+
+    // =========================================================
+    // CONTACT INFORMATION
+    // =========================================================
+
+    @Column(name = "contact")
     private String contact;
 
+
+    // =========================================================
+    // STAFF ASSIGNED BY ADMIN
+    // =========================================================
+
+    @Column(name = "assigned_staff")
     private String assignedStaff;
 
-    @Enumerated(EnumType.STRING)
-    private ComplaintStatus status;
 
+    // =========================================================
+    // COMPLAINT STATUS
+    // =========================================================
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private ComplaintStatus status = ComplaintStatus.PENDING;
+
+
+    // =========================================================
+    // LOCATION
+    // =========================================================
+
+    @Column(name = "latitude")
     private Double latitude;
+
+    @Column(name = "longitude")
     private Double longitude;
 
-    @Column(length = 1500)
+
+    // =========================================================
+    // LOCATION ADDRESS
+    // =========================================================
+
+    @Column(
+        name = "address",
+        columnDefinition = "TEXT"
+    )
     private String address;
 
-    @Column(length = 255)
+
+    // =========================================================
+    // PROOF PHOTO INFORMATION
+    // =========================================================
+
+    @Column(name = "proof_file_name")
     private String proofFileName;
 
-    @Column(length = 100)
+    @Column(name = "proof_content_type")
     private String proofContentType;
 
+
+    // =========================================================
+    // PROOF IMAGE
+    // Stored as BLOB in MySQL
+    // =========================================================
+
     @Lob
-    @Basic(fetch = FetchType.LAZY)
+    @Column(
+        name = "proof_image",
+        columnDefinition = "LONGBLOB"
+    )
     private byte[] proofImage;
 
+
+    // =========================================================
+    // TIMESTAMPS
+    // =========================================================
+
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+
+    // =========================================================
+    // BEFORE INSERT
+    // =========================================================
+
     @PrePersist
-    void onCreate() {
+    protected void onCreate() {
+
         LocalDateTime now = LocalDateTime.now();
+
         createdAt = now;
         updatedAt = now;
-        if (status == null) status = ComplaintStatus.PENDING;
+
+        if (status == null) {
+            status = ComplaintStatus.PENDING;
+        }
     }
 
+
+    // =========================================================
+    // BEFORE UPDATE
+    // =========================================================
+
     @PreUpdate
-    void onUpdate() {
+    protected void onUpdate() {
+
         updatedAt = LocalDateTime.now();
     }
 
-    public Long getId() { return id; }
-    public String getComplaintId() { return complaintId; }
-    public void setComplaintId(String v) { complaintId = v; }
-    public String getType() { return type; }
-    public void setType(String v) { type = v; }
-    public String getDescription() { return description; }
-    public void setDescription(String v) { description = v; }
-    public String getContact() { return contact; }
-    public void setContact(String v) { contact = v; }
-    public String getAssignedStaff() { return assignedStaff; }
-    public void setAssignedStaff(String v) { assignedStaff = v; }
-    public ComplaintStatus getStatus() { return status; }
-    public void setStatus(ComplaintStatus v) { status = v; }
-    public Double getLatitude() { return latitude; }
-    public void setLatitude(Double v) { latitude = v; }
-    public Double getLongitude() { return longitude; }
-    public void setLongitude(Double v) { longitude = v; }
-    public String getAddress() { return address; }
-    public void setAddress(String v) { address = v; }
-    public String getProofFileName() { return proofFileName; }
-    public void setProofFileName(String v) { proofFileName = v; }
-    public String getProofContentType() { return proofContentType; }
-    public void setProofContentType(String v) { proofContentType = v; }
-    public byte[] getProofImage() { return proofImage; }
-    public void setProofImage(byte[] v) { proofImage = v; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
+
+    // =========================================================
+    // GETTERS
+    // =========================================================
+
+    public Long getId() {
+        return id;
+    }
+
+
+    public String getComplaintId() {
+        return complaintId;
+    }
+
+
+    public String getUserId() {
+        return userId;
+    }
+
+
+    public String getType() {
+        return type;
+    }
+
+
+    public String getDescription() {
+        return description;
+    }
+
+
+    public String getContact() {
+        return contact;
+    }
+
+
+    public String getAssignedStaff() {
+        return assignedStaff;
+    }
+
+
+    public ComplaintStatus getStatus() {
+        return status;
+    }
+
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+
+    public String getAddress() {
+        return address;
+    }
+
+
+    public String getProofFileName() {
+        return proofFileName;
+    }
+
+
+    public String getProofContentType() {
+        return proofContentType;
+    }
+
+
+    public byte[] getProofImage() {
+        return proofImage;
+    }
+
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+
+    // =========================================================
+    // SETTERS
+    // =========================================================
+
+    public void setComplaintId(String complaintId) {
+        this.complaintId = complaintId;
+    }
+
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+
+    public void setContact(String contact) {
+        this.contact = contact;
+    }
+
+
+    public void setAssignedStaff(String assignedStaff) {
+        this.assignedStaff = assignedStaff;
+    }
+
+
+    public void setStatus(ComplaintStatus status) {
+        this.status = status;
+    }
+
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+
+    public void setProofFileName(String proofFileName) {
+        this.proofFileName = proofFileName;
+    }
+
+
+    public void setProofContentType(String proofContentType) {
+        this.proofContentType = proofContentType;
+    }
+
+
+    public void setProofImage(byte[] proofImage) {
+        this.proofImage = proofImage;
+    }
 }

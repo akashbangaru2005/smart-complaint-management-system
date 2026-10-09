@@ -3,111 +3,615 @@ package com.smartcomplaint.controller;
 import com.smartcomplaint.model.Complaint;
 import com.smartcomplaint.model.ComplaintStatus;
 import com.smartcomplaint.repository.ComplaintRepository;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/complaints")
+@CrossOrigin(origins = "*")
 public class ComplaintController {
-    private final ComplaintRepository repo;
 
-    public ComplaintController(ComplaintRepository repo) {
-        this.repo = repo;
+    private final ComplaintRepository complaintRepository;
+
+    public ComplaintController(
+            ComplaintRepository complaintRepository
+    ) {
+        this.complaintRepository = complaintRepository;
     }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> create(
-            @RequestParam String type,
-            @RequestParam String description,
-            @RequestParam String contact,
-            @RequestParam(required = false) Double latitude,
-            @RequestParam(required = false) Double longitude,
-            @RequestParam(required = false) String address,
-            @RequestPart(required = false) MultipartFile proof) {
+    // =========================================================
+    // CREATE COMPLAINT
+    // =========================================================
 
-        if (description.isBlank() || contact.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Description and contact are required"));
-        }
+    @PostMapping(
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<?> createComplaint(
+
+            @RequestParam String userId,
+
+            @RequestParam String type,
+
+            @RequestParam String description,
+
+            @RequestParam(required = false)
+            String contact,
+
+            @RequestParam(required = false)
+            String latitude,
+
+            @RequestParam(required = false)
+            String longitude,
+
+            @RequestParam(required = false)
+            String address,
+
+            @RequestPart(required = false)
+            MultipartFile proof
+    ) {
 
         try {
-            Complaint c = new Complaint();
-            c.setComplaintId("CMP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
-            c.setType(type);
-            c.setDescription(description);
-            c.setContact(contact);
-            c.setLatitude(latitude);
-            c.setLongitude(longitude);
-            c.setAddress(address);
-            c.setStatus(ComplaintStatus.PENDING);
+
+            // -------------------------------------------------
+            // Validate required fields
+            // -------------------------------------------------
+
+            if (userId == null || userId.isBlank()) {
+                return ResponseEntity
+                        .badRequest()
+                        .body(
+                                Map.of(
+                                        "message",
+                                        "User ID is required."
+                                )
+                        );
+            }
+
+            if (type == null || type.isBlank()) {
+                return ResponseEntity
+                        .badRequest()
+                        .body(
+                                Map.of(
+                                        "message",
+                                        "Complaint type is required."
+                                )
+                        );
+            }
+
+            if (description == null || description.isBlank()) {
+                return ResponseEntity
+                        .badRequest()
+                        .body(
+                                Map.of(
+                                        "message",
+                                        "Complaint description is required."
+                                )
+                        );
+            }
+
+            // -------------------------------------------------
+            // Create complaint object
+            // -------------------------------------------------
+
+            Complaint complaint = new Complaint();
+
+            // -------------------------------------------------
+            // Generate unique complaint ID
+            // Example: CMP-2E1BE4BB
+            // -------------------------------------------------
+
+            String complaintId =
+                    "CMP-" +
+                    UUID.randomUUID()
+                            .toString()
+                            .substring(0, 8)
+                            .toUpperCase();
+
+            complaint.setComplaintId(complaintId);
+
+            // -------------------------------------------------
+            // Basic complaint information
+            // -------------------------------------------------
+
+            complaint.setUserId(userId);
+
+            complaint.setType(type);
+
+            complaint.setDescription(description);
+
+            complaint.setContact(contact);
+
+            // -------------------------------------------------
+            // Location
+            // -------------------------------------------------
+
+            if (latitude != null && !latitude.isBlank()) {
+
+                try {
+
+                    complaint.setLatitude(
+                            Double.parseDouble(latitude)
+                    );
+
+                } catch (NumberFormatException e) {
+
+                    return ResponseEntity
+                            .badRequest()
+                            .body(
+                                    Map.of(
+                                            "message",
+                                            "Invalid latitude value."
+                                    )
+                            );
+                }
+            }
+
+            if (longitude != null && !longitude.isBlank()) {
+
+                try {
+
+                    complaint.setLongitude(
+                            Double.parseDouble(longitude)
+                    );
+
+                } catch (NumberFormatException e) {
+
+                    return ResponseEntity
+                            .badRequest()
+                            .body(
+                                    Map.of(
+                                            "message",
+                                            "Invalid longitude value."
+                                    )
+                            );
+                }
+            }
+
+            complaint.setAddress(address);
+
+            // -------------------------------------------------
+            // Default status
+            // -------------------------------------------------
+
+            complaint.setStatus(
+                    ComplaintStatus.PENDING
+            );
+
+            // =================================================
+            // PROOF PHOTO
+            // =================================================
 
             if (proof != null && !proof.isEmpty()) {
-                if (proof.getSize() > 10 * 1024 * 1024) {
-                    return ResponseEntity.badRequest().body(Map.of("message", "Proof image must be 10MB or smaller"));
+
+                // Maximum 10 MB
+
+                if (proof.getSize() >
+                        10L * 1024L * 1024L) {
+
+                    return ResponseEntity
+                            .badRequest()
+                            .body(
+                                    Map.of(
+                                            "message",
+                                            "Proof image must be smaller than 10 MB."
+                                    )
+                            );
                 }
-                String contentType = proof.getContentType();
-                if (contentType == null || !contentType.startsWith("image/")) {
-                    return ResponseEntity.badRequest().body(Map.of("message", "Only image proof files are allowed"));
+
+                // Only allow images
+
+                String contentType =
+                        proof.getContentType();
+
+                if (
+                        contentType == null ||
+                        !contentType.startsWith("image/")
+                ) {
+
+                    return ResponseEntity
+                            .badRequest()
+                            .body(
+                                    Map.of(
+                                            "message",
+                                            "Only image files are allowed as proof."
+                                    )
+                            );
                 }
-                c.setProofFileName(proof.getOriginalFilename());
-                c.setProofContentType(contentType);
-                c.setProofImage(proof.getBytes());
+
+                complaint.setProofFileName(
+                        proof.getOriginalFilename()
+                );
+
+                complaint.setProofContentType(
+                        contentType
+                );
+
+                complaint.setProofImage(
+                        proof.getBytes()
+                );
             }
 
-            return ResponseEntity.ok(repo.save(c));
-        } catch (Exception ex) {
-            return ResponseEntity.internalServerError().body(Map.of("message", "Could not save complaint"));
+            // =================================================
+            // SAVE COMPLAINT
+            // =================================================
+
+            Complaint savedComplaint =
+                    complaintRepository.save(
+                            complaint
+                    );
+
+            return ResponseEntity
+                    .status(HttpStatus.CREATED)
+                    .body(savedComplaint);
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(
+                            Map.of(
+                                    "message",
+                                    "Unable to create complaint.",
+                                    "error",
+                                    e.getMessage() != null
+                                            ? e.getMessage()
+                                            : "Unknown error"
+                            )
+                    );
         }
     }
+
+    // =========================================================
+    // GET ALL COMPLAINTS
+    // ADMIN
+    // =========================================================
 
     @GetMapping
-    public List<Complaint> all() {
-        return repo.findAllByOrderByCreatedAtDesc();
+    public ResponseEntity<List<Complaint>>
+    getAllComplaints() {
+
+        List<Complaint> complaints =
+                complaintRepository.findAll();
+
+        return ResponseEntity.ok(
+                complaints
+        );
     }
+
+    // =========================================================
+    // GET USER COMPLAINTS
+    //
+    // Example:
+    // GET /api/complaints/user/USER-123
+    // =========================================================
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<Complaint>>
+    getUserComplaints(
+            @PathVariable String userId
+    ) {
+
+        if (userId == null || userId.isBlank()) {
+
+            return ResponseEntity
+                    .badRequest()
+                    .build();
+        }
+
+        List<Complaint> complaints =
+                complaintRepository
+                        .findByUserIdOrderByCreatedAtDesc(
+                                userId
+                        );
+
+        return ResponseEntity.ok(
+                complaints
+        );
+    }
+
+    // =========================================================
+    // GET SINGLE COMPLAINT
+    //
+    // Example:
+    // GET /api/complaints/CMP-12345678
+    // =========================================================
 
     @GetMapping("/{complaintId}")
-    public ResponseEntity<?> get(@PathVariable String complaintId) {
-        return repo.findByComplaintId(complaintId)
-                .<ResponseEntity<?>>map(c -> {
-                    c.setProofImage(null);
-                    return ResponseEntity.ok(c);
-                })
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    public ResponseEntity<?> getComplaint(
+            @PathVariable String complaintId
+    ) {
+
+        return complaintRepository
+                .findByComplaintId(complaintId)
+                .<ResponseEntity<?>>map(
+                        complaint ->
+                                ResponseEntity.ok(
+                                        complaint
+                                )
+                )
+                .orElseGet(
+                        () ->
+                                ResponseEntity
+                                        .status(
+                                                HttpStatus.NOT_FOUND
+                                        )
+                                        .body(
+                                                Map.of(
+                                                        "message",
+                                                        "Complaint not found."
+                                                )
+                                        )
+                );
     }
 
-    @GetMapping("/{complaintId}/proof")
-    public ResponseEntity<?> proof(@PathVariable String complaintId) {
-        return repo.findByComplaintId(complaintId)
-                .map(c -> ResponseEntity.ok()
-                        .contentType(MediaType.parseMediaType(
-                                c.getProofContentType() == null ? "image/jpeg" : c.getProofContentType()))
-                        .body(c.getProofImage()))
-                .orElseGet(() -> ResponseEntity.notFound().build());
-    }
+    // =========================================================
+    // UPDATE COMPLAINT
+    // ADMIN
+    //
+    // Can update:
+    // - status
+    // - assignedStaff
+    // =========================================================
 
     @PatchMapping("/{complaintId}")
-    public ResponseEntity<?> update(@PathVariable String complaintId,
-                                    @RequestBody Map<String, String> body) {
-        Optional<Complaint> optional = repo.findByComplaintId(complaintId);
-        if (optional.isEmpty()) return ResponseEntity.notFound().build();
+    public ResponseEntity<?> updateComplaint(
 
-        Complaint c = optional.get();
+            @PathVariable String complaintId,
 
-        if (body.containsKey("status")) {
+            @RequestBody Map<String, Object> body
+    ) {
+
+        try {
+
+            Complaint complaint =
+                    complaintRepository
+                            .findByComplaintId(
+                                    complaintId
+                            )
+                            .orElse(null);
+
+            if (complaint == null) {
+
+                return ResponseEntity
+                        .status(
+                                HttpStatus.NOT_FOUND
+                        )
+                        .body(
+                                Map.of(
+                                        "message",
+                                        "Complaint not found."
+                                )
+                        );
+            }
+
+            // -------------------------------------------------
+            // UPDATE STATUS
+            // -------------------------------------------------
+
+            if (body.containsKey("status")) {
+
+                Object statusValue =
+                        body.get("status");
+
+                if (statusValue != null) {
+
+                    String statusText =
+                            statusValue
+                                    .toString()
+                                    .trim()
+                                    .toUpperCase();
+
+                    try {
+
+                        ComplaintStatus newStatus =
+                                ComplaintStatus.valueOf(
+                                        statusText
+                                );
+
+                        complaint.setStatus(
+                                newStatus
+                        );
+
+                    } catch (IllegalArgumentException e) {
+
+                        return ResponseEntity
+                                .badRequest()
+                                .body(
+                                        Map.of(
+                                                "message",
+                                                "Invalid complaint status.",
+                                                "allowed",
+                                                List.of(
+                                                        "PENDING",
+                                                        "IN_PROGRESS",
+                                                        "RESOLVED",
+                                                        "REJECTED"
+                                                )
+                                        )
+                                );
+                    }
+                }
+            }
+
+            // -------------------------------------------------
+            // ASSIGN STAFF
+            // -------------------------------------------------
+
+            if (body.containsKey("assignedStaff")) {
+
+                Object staffValue =
+                        body.get("assignedStaff");
+
+                if (staffValue != null) {
+
+                    complaint.setAssignedStaff(
+                            staffValue
+                                    .toString()
+                                    .trim()
+                    );
+                }
+            }
+
+            // -------------------------------------------------
+            // SAVE UPDATED COMPLAINT
+            // -------------------------------------------------
+
+            Complaint updatedComplaint =
+                    complaintRepository.save(
+                            complaint
+                    );
+
+            return ResponseEntity.ok(
+                    updatedComplaint
+            );
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            return ResponseEntity
+                    .status(
+                            HttpStatus.INTERNAL_SERVER_ERROR
+                    )
+                    .body(
+                            Map.of(
+                                    "message",
+                                    "Unable to update complaint.",
+                                    "error",
+                                    e.getMessage() != null
+                                            ? e.getMessage()
+                                            : "Unknown error"
+                            )
+                    );
+        }
+    }
+
+    // =========================================================
+    // GET PROOF IMAGE
+    //
+    // Example:
+    // GET /api/complaints/CMP-12345678/proof
+    // =========================================================
+
+    @GetMapping("/{complaintId}/proof")
+    public ResponseEntity<byte[]> getProof(
+            @PathVariable String complaintId
+    ) {
+
+        Complaint complaint =
+                complaintRepository
+                        .findByComplaintId(
+                                complaintId
+                        )
+                        .orElse(null);
+
+        // -----------------------------------------------------
+        // Complaint not found
+        // -----------------------------------------------------
+
+        if (complaint == null) {
+
+            return ResponseEntity
+                    .notFound()
+                    .build();
+        }
+
+        // -----------------------------------------------------
+        // No proof image
+        // -----------------------------------------------------
+
+        if (complaint.getProofImage() == null ||
+                complaint.getProofImage().length == 0) {
+
+            return ResponseEntity
+                    .notFound()
+                    .build();
+        }
+
+        // -----------------------------------------------------
+        // Determine image type
+        // -----------------------------------------------------
+
+        MediaType mediaType =
+                MediaType.IMAGE_JPEG;
+
+        String contentType =
+                complaint.getProofContentType();
+
+        if (
+                contentType != null &&
+                !contentType.isBlank()
+        ) {
+
             try {
-                c.setStatus(ComplaintStatus.valueOf(body.get("status")));
-            } catch (IllegalArgumentException e) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Invalid status"));
+
+                mediaType =
+                        MediaType.parseMediaType(
+                                contentType
+                        );
+
+            } catch (Exception ignored) {
+
+                mediaType =
+                        MediaType.IMAGE_JPEG;
             }
         }
 
-        if (body.containsKey("assignedStaff")) {
-            c.setAssignedStaff(body.get("assignedStaff"));
+        // -----------------------------------------------------
+        // Filename
+        // -----------------------------------------------------
+
+        String fileName =
+                complaint.getProofFileName();
+
+        if (
+                fileName == null ||
+                fileName.isBlank()
+        ) {
+
+            fileName =
+                    "complaint-proof.jpg";
         }
 
-        return ResponseEntity.ok(repo.save(c));
+        // -----------------------------------------------------
+        // Return image
+        // -----------------------------------------------------
+
+        return ResponseEntity
+                .ok()
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"" +
+                                fileName.replace(
+                                        "\"",
+                                        ""
+                                ) +
+                                "\""
+                )
+                .contentType(mediaType)
+                .body(
+                        complaint.getProofImage()
+                );
     }
 }
